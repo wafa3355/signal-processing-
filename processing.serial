@@ -1,0 +1,50 @@
+import processing.serial.*;
+
+Serial myPort;
+String frequency = "";
+String speed = "";
+boolean dataReceived = false;
+
+void setup() {
+  size(800, 400);
+  textAlign(CENTER, CENTER);
+  textSize(48);
+  background(0);
+  
+  println("Available serial ports:");
+  println(Serial.list());  // List all serial ports to help find correct one
+  
+  // Change "COM8" to your actual ESP32 serial port:
+  myPort = new Serial(this, "COM8", 115200);
+  myPort.bufferUntil('\n');  // Trigger serialEvent on newline
+}
+
+void draw() {
+  background(0);
+  
+  if (dataReceived) {
+    fill(0, 255, 0);
+    text("Doppler Frequency: " + frequency + " Hz", width/2, height/2 - 40);
+    text("Speed: " + speed + " m/s", width/2, height/2 + 40);
+  } else {
+    fill(255);
+    text("Waiting for Doppler data...", width/2, height/2);
+  }
+}
+
+void serialEvent(Serial p) {
+  String line = trim(p.readStringUntil('\n'));
+  println("Received line: " + line);  // Debug: show all incoming data
+  
+  if (line.startsWith("Doppler Frequency:")) {
+    String val = split(line, ":")[1].trim();
+    val = val.replace("Hz", "").trim();  // Remove units if present
+    frequency = nf(parseFloat(val), 1, 2);
+  } 
+  else if (line.startsWith("Speed:")) {
+    String val = split(line, ":")[1].trim();
+    val = val.replace("m/s", "").trim();  // Remove units if present
+    speed = nf(parseFloat(val), 1, 4);
+    dataReceived = true;
+  }
+}
