@@ -1,0 +1,69 @@
+const int analogPin = 34;                // Radar output connected to GPIO34 (ADC)
+const int sampleIntervalMicros = 100;    // 10kHz sampling rate (100us)
+const float c = 3.0e8;                   // Speed of light (m/s)
+const float f0 = 2.4e9;                  // Radar transmit frequency (Hz)
+
+unsigned long lastSampleTime = 0;
+int lastState = 0;
+unsigned int crossingCount = 0;
+unsigned long lastPrintTime = 0;
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);             // 12-bit ADC (0-4095)
+  analogSetAttenuation(ADC_11db);       // Full range ~3.3V
+  delay(1000);
+  Serial.println("=== Starting Doppler speed measurement ===");
+}
+
+void loop() {
+  unsigned long startTime = millis();
+  crossingCount = 0;
+  lastState = 0;
+
+  float minVoltage = 3.3, maxVoltage = 0;
+  const unsigned long measurementDuration = 1000; // 1 second
+
+  while (millis() - startTime < measurementDuration) {
+    if (micros() - lastSampleTime >= sampleIntervalMicros) {
+      lastSampleTime = micros();
+
+      int rawValue = analogRead(analogPin);
+      float voltage = rawValue * 3.3 / 4095.0;
+
+      if (voltage > maxVoltage) maxVoltage = voltage;
+      if (voltage < minVoltage) minVoltage = voltage;
+
+      float threshold = (maxVoltage + minVoltage) / 2.0;
+      int currentState = (voltage > threshold) ? 1 : 0;
+
+      if (lastState == 0 && currentState == 1) {
+        crossingCount++;
+      }
+
+      lastState = currentState;
+    }
+  }
+
+  if (millis() - lastPrintTime >= 5000) {
+    float frequency = crossingCount;  // crossings in 1 second = Hz
+    float speed = (frequency * c) / (2.0 * f0);  // m/s
+
+    Serial.println();
+    Serial.println("===========================================");
+    Serial.println("          DOPPLER RADAR SPEED");
+    Serial.println("===========================================");
+    Serial.print  ("Doppler Frequency: ");
+    Serial.print  (frequency);
+    Serial.println(" Hz");
+
+    Serial.print  ("Speed: ");
+    Serial.print  (speed, 4);  // Speed in m/s
+    Serial.println(" m/s");
+    Serial.println("===========================================\n");
+
+    lastPrintTime = millis();
+  }
+
+  delay(10);  // Prevent watchdog timer reset
+}
